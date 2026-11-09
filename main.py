@@ -1,162 +1,56 @@
-import turtle
-import time
-import random
+import os
+import threading
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from yt_dlp import YoutubeDL
 
-# Game Configuration
-DELAY = 0.1
-SCORE = 0
-HIGH_SCORE = 0
-
-# Screen Setup
-window = turtle.Screen()
-window.title("Snake Game")
-window.bgcolor("#1a1a1a")
-window.setup(width=600, height=600)
-window.tracer(0) 
-
-# Snake Head
-head = turtle.Turtle()
-head.speed(0)
-head.shape("square")
-head.color("#4CAF50")
-head.penup()
-head.goto(0, 0)
-head.direction = "stop"
-
-# Snake Food
-food = turtle.Turtle()
-food.speed(0)
-food.shape("circle")
-food.color("#FF5252")
-food.penup()
-food.goto(0, 100)
-
-# Snake Body Segments
-segments = []
-
-# Scoreboard
-pen = turtle.Turtle()
-pen.speed(0)
-pen.shape("square")
-pen.color("white")
-pen.penup()
-pen.hideturtle()
-pen.goto(0, 260)
-pen.write("Score: 0  High Score: 0", align="center", font=("Courier", 24, "normal"))
-
-# Movement Functions
-def go_up():
-    if head.direction != "down":
-        head.direction = "up"
-
-def go_down():
-    if head.direction != "up":
-        head.direction = "down"
-
-def go_left():
-    if head.direction != "right":
-        head.direction = "left"
-
-def go_right():
-    if head.direction != "left":
-        head.direction = "right"
-
-def move():
-    if head.direction == "up":
-        y = head.ycor()
-        head.sety(y + 20)
-
-    if head.direction == "down":
-        y = head.ycor()
-        head.sety(y - 20)
-
-    if head.direction == "left":
-        x = head.xcor()
-        head.setx(x - 20)
-
-    if head.direction == "right":
-        x = head.xcor()
-        head.setx(x + 20)
-
-# Keyboard Bindings
-window.listen()
-window.onkeypress(go_up, "Up")
-window.onkeypress(go_down, "Down")
-window.onkeypress(go_left, "Left")
-window.onkeypress(go_right, "Right")
-
-# Main Game Loop
-while True:
-    window.update()
-
-    # Check for Wall Collisions
-    if head.xcor() > 290 or head.xcor() < -290 or head.ycor() > 290 or head.ycor() < -290:
-        time.sleep(1)
-        head.goto(0, 0)
-        head.direction = "stop"
-
-        # Hide the segments
-        for segment in segments:
-            segment.goto(1000, 1000)
-        segments.clear()
-
-        # Reset Score
-        SCORE = 0
-        pen.clear()
-        pen.write(f"Score: {SCORE}  High Score: {HIGH_SCORE}", align="center", font=("Courier", 24, "normal"))
-
-    # Check for Food Collision
-    if head.distance(food) < 20:
-        # Move food to a random spot
-        x = random.randint(-280, 280)
-        y = random.randint(-280, 280)
-        food.goto(x, y)
-
-        # Add a segment to the snake body
-        new_segment = turtle.Turtle()
-        new_segment.speed(0)
-        new_segment.shape("square")
-        new_segment.color("#81C784")
-        new_segment.penup()
-        segments.append(new_segment)
-
-        # Increase Score
-        SCORE += 1
-        if SCORE > HIGH_SCORE:
-            HIGH_SCORE = SCORE
+class DownloaderApp(App):
+    def build(self):
+        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
         
-        pen.clear()
-        pen.write(f"Score: {SCORE}  High Score: {HIGH_SCORE}", align="center", font=("Courier", 24, "normal"))
+        self.label = Label(text="Paste YouTube URL below:", size_hint_y=0.2)
+        self.layout.add_widget(self.label)
+        
+        self.url_input = TextInput(multiline=False, size_hint_y=0.2)
+        self.layout.add_widget(self.url_input)
+        
+        self.download_btn = Button(text="Download Video", size_hint_y=0.2)
+        self.download_btn.bind(on_press=self.start_download)
+        self.layout.add_widget(self.download_btn)
+        
+        self.status_label = Label(text="Status: Idle", size_hint_y=0.4)
+        self.layout.add_widget(self.status_label)
+        
+        return self.layout
 
-    # Move the body segments in reverse order
-    for index in range(len(segments) - 1, 0, -1):
-        x = segments[index - 1].xcor()
-        y = segments[index - 1].ycor()
-        segments[index].goto(x, y)
+    def start_download(self, instance):
+        url = self.url_input.text.strip()
+        if not url:
+            self.status_label.text = "Status: Please enter a valid URL!"
+            return
+        
+        self.status_label.text = "Status: Downloading..."
+        # Run download in a background thread to prevent UI freezing
+        threading.Thread(target=self.download_video, args=(url,)).start()
 
-    # Move segment 0 to where the head was
-    if len(segments) > 0:
-        x = head.xcor()
-        y = head.ycor()
-        segments[0].goto(x, y)
+    def download_video(self, url):
+        # Target the public Downloads directory on Android
+        download_path = '/storage/emulated/0/Download/%(title)s.%(ext)s'
+        
+        ydl_opts = {
+            'outtmpl': download_path,
+            'format': 'best',  # Gets best pre-merged video/audio stream without needing complex external FFmpeg setups
+        }
+        
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            self.status_label.text = "Status: Download Successful! Check your Downloads folder."
+        except Exception as e:
+            self.status_label.text = f"Status: Error - {str(e)}"
 
-    move()
-
-    # Check for Head Collisions with Body
-    for segment in segments:
-        if segment.distance(head) < 20:
-            time.sleep(1)
-            head.goto(0, 0)
-            head.direction = "stop"
-
-            for seg in segments:
-                seg.goto(1000, 1000)
-            segments.clear()
-
-            SCORE = 0
-            pen.clear()
-            pen.write(f"Score: {SCORE}  High Score: {HIGH_SCORE}", align="center", font=("Courier", 24, "normal"))
-
-    time.sleep(DELAY)
-
-window.mainloop()
+if __name__ == '__main__':
+    DownloaderApp().run()
