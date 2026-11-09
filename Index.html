@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake Game</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #101418;
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.game {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+}
+
+h1 {
+    color: #56e39f;
+    letter-spacing: 3px;
+}
+
+.score {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+    font-size: 18px;
+}
+
+canvas {
+    width: 100%;
+    background: #1b242b;
+    border: 2px solid #56e39f;
+    border-radius: 8px;
+    display: block;
+}
+
+button {
+    background: #56e39f;
+    color: #101418;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 22px;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.controls {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 65px);
+    justify-content: center;
+    gap: 8px;
+}
+
+.controls button {
+    padding: 15px 0;
+    font-size: 22px;
+}
+
+.empty {
+    visibility: hidden;
+}
+
+#message {
+    margin: 15px;
+    color: #56e39f;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game">
+
+    <h1>SNAKE</h1>
+
+    <div class="score">
+        <span>Score: <b id="score">0</b></span>
+        <span>Best: <b id="best">0</b></span>
+    </div>
+
+    <canvas id="board" width="400" height="400"></canvas>
+
+    <p id="message">Eat food. Don't hit yourself!</p>
+
+    <button onclick="restart()">START / RESTART</button>
+
+    <div class="controls">
+        <button class="empty"></button>
+        <button onclick="changeDirection('up')">▲</button>
+        <button class="empty"></button>
+
+        <button onclick="changeDirection('left')">◀</button>
+        <button onclick="changeDirection('down')">▼</button>
+        <button onclick="changeDirection('right')">▶</button>
+    </div>
+
+</div>
+
+<script>
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+
+const size = 20;
+const cells = 20;
+
+let snake, food, direction, nextDirection;
+let score = 0;
+let best = Number(localStorage.getItem("snakeBest")) || 0;
+let running = false;
+let timer;
+
+document.getElementById("best").textContent = best;
+
+function restart() {
+    clearInterval(timer);
+
+    snake = [
+        {x: 10, y: 10},
+        {x: 9, y: 10},
+        {x: 8, y: 10}
+    ];
+
+    direction = "right";
+    nextDirection = "right";
+    score = 0;
+    running = true;
+
+    document.getElementById("score").textContent = score;
+    document.getElementById("message").textContent = "Good luck!";
+
+    spawnFood();
+    draw();
+
+    timer = setInterval(update, 120);
+}
+
+function spawnFood() {
+    do {
+        food = {
+            x: Math.floor(Math.random() * cells),
+            y: Math.floor(Math.random() * cells)
+        };
+    } while (snake.some(part =>
+        part.x === food.x && part.y === food.y
+    ));
+}
+
+function changeDirection(dir) {
+    const opposites = {
+        up: "down",
+        down: "up",
+        left: "right",
+        right: "left"
+    };
+
+    if (opposites[dir] !== direction) {
+        nextDirection = dir;
+    }
+}
+
+document.addEventListener("keydown", e => {
+    const keys = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+        w: "up",
+        s: "down",
+        a: "left",
+        d: "right"
+    };
+
+    if (keys[e.key]) {
+        e.preventDefault();
+        changeDirection(keys[e.key]);
+    }
+});
+
+function update() {
+    direction = nextDirection;
+
+    const head = {...snake[0]};
+
+    if (direction === "up") head.y--;
+    if (direction === "down") head.y++;
+    if (direction === "left") head.x--;
+    if (direction === "right") head.x++;
+
+    const eating = head.x === food.x && head.y === food.y;
+
+    if (
+        head.x < 0 || head.x >= cells ||
+        head.y < 0 || head.y >= cells
+    ) {
+        gameOver();
+        return;
+    }
+
+    const body = eating ? snake : snake.slice(0, -1);
+
+    if (body.some(part =>
+        part.x === head.x && part.y === head.y
+    )) {
+        gameOver();
+        return;
+    }
+
+    snake.unshift(head);
+
+    if (eating) {
+        score++;
+        document.getElementById("score").textContent = score;
+
+        if (score > best) {
+            best = score;
+            localStorage.setItem("snakeBest", best);
+            document.getElementById("best").textContent = best;
+        }
+
+        spawnFood();
+    } else {
+        snake.pop();
+    }
+
+    draw();
+}
+
+function draw() {
+    ctx.fillStyle = "#1b242b";
+    ctx.fillRect(0, 0, 400, 400);
+
+    ctx.fillStyle = "#ff647c";
+    ctx.fillRect(food.x * size, food.y * size, size, size);
+
+    snake.forEach((part, index) => {
+        ctx.fillStyle = index === 0 ? "#9affc9" : "#56e39f";
+
+        ctx.fillRect(
+            part.x * size + 1,
+            part.y * size + 1,
+            size - 2,
+            size - 2
+        );
+    });
+}
+
+function gameOver() {
+    running = false;
+    clearInterval(timer);
+
+    document.getElementById("message").textContent =
+        "Game Over! Score: " + score;
+
+    draw();
+
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(0, 150, 400, 100);
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 30px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", 200, 210);
+}
+
+restart();
+</script>
+
+</body>
+</html>
